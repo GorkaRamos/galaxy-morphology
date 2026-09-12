@@ -39,10 +39,11 @@ import pandas as pd
 from scipy import stats
 
 import config
-from src.common import (bootstrap_ci, classification_metrics, coverage_at_accuracy,
+from src.common import (agreement_index, bootstrap_ci, classification_metrics,
+                        coverage_at_accuracy, exact_agreement,
                         ensure_dir, load_table, read_json, reliability_curve,
                         dataset_meta, risk_coverage_curve, write_json)
-from src.registry import REGISTRY, reference_runs
+from src.registry import REGISTRY, reference_runs, study_runs
 
 CONFIG_KEYS = ("arch", "dataset", "label_mode", "policy", "size", "finetune",
                "loss", "train_size", "seed", "orientation_pooled", "pretrained")
@@ -269,8 +270,7 @@ def _ceiling_by_bin(test: pd.DataFrame, p: np.ndarray, pi: np.ndarray) -> dict:
     comparison in that figure to mean anything.
     """
     edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
-    agreement = np.abs(2.0 * p - 1.0)
-    idx = np.clip(np.digitize(agreement, edges[1:-1]), 0, len(edges) - 2)
+    idx = agreement_index(np.abs(2.0 * p - 1.0))
     out = {}
     for b in range(len(edges) - 1):
         inside = idx == b
@@ -287,7 +287,8 @@ def _ceiling_by_bin(test: pd.DataFrame, p: np.ndarray, pi: np.ndarray) -> dict:
 # Agreement-conditioned behaviour
 # --------------------------------------------------------------------------- #
 
-def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataFrame:
+def agreement_profile(runs: pd.DataFrame, table: pd.DataFrame,
+                      prob_column: str = "prob") -> pd.DataFrame:
     """Accuracy, AUC and calibration inside each volunteer-agreement bin.
 
     This is the central measurement of the paper: if the residual error is
@@ -308,8 +309,7 @@ def agreement_profile(runs: pd.DataFrame, prob_column: str = "prob") -> pd.DataF
         if pred is None:
             continue
         col = prob_column if prob_column in pred else "prob"
-        idx = np.clip(np.digitize(pred["agreement"].to_numpy(), edges[1:-1]), 0,
-                      len(edges) - 2)
+        idx = agreement_index(exact_agreement(pred, table))
         total_errors = float((((pred[col] >= 0.5).astype(int) != pred["label"]).sum()))
         for b in range(len(edges) - 1):
             m = idx == b
@@ -615,7 +615,7 @@ def summarise(runs: pd.DataFrame, agreement: pd.DataFrame, ceiling: dict,
         }
 
     out = {
-        "n_runs": int(len(runs)),
+        "n_runs": int(len(study_runs(runs))),
         "vote_ceiling": ceiling,
         "best_hard": best(ref, "hard"),
         "best_soft": best(ref, "soft"),
@@ -659,8 +659,15 @@ def main() -> None:
         return
 
     ensure_dir(config.RESULTS)
-    runs = collect_runs()
-    runs.to_csv(config.RESULTS / "runs.csv", index=False)
+    every_run = collect_runs()
+    every_run.to_csv(config.RESULTS / "runs.csv", index=False)
+    # runs.csv keeps the replication sweep, because src.replication reads it from
+    # there. Nothing below this line does: the galaxy study is what the rest of the
+    # analysis, and every number the manuscript quotes about the grid, refers to.
+    runs = study_runs(every_run)
+    if len(runs) != len(every_run):
+        print(f"  {len(every_run) - len(runs)} runs on other datasets held back "
+              f"from the analysis; {len(runs)} in the study")
 
     table = load_table("gz2")
     ceiling = vote_ceiling(table, "p_featured")
@@ -675,7 +682,7 @@ def main() -> None:
 
     agreement = selective = pd.DataFrame()
     if not args.skip_predictions:
-        agreement = agreement_profile(runs)
+        agreement = agreement_profile(runs, table)
         agreement.to_csv(config.RESULTS / "agreement.csv", index=False)
 
         selective = selective_prediction(runs)

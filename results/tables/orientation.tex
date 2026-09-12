@@ -1,4 +1,4 @@
-\begin{table}[!htb]
+\begin{table}[!htbp]
 \centering
 \caption{Orientation. \emph{learnt} means the network sees rotated and mirrored copies during training; \emph{built in} means its logit is averaged over the eight elements of $D_4$, which makes it exactly invariant at eight times the inference cost. $\varepsilon_{D_4}$ is the mean spread of the predicted probability over the eight views of a test image, so it is zero for the built-in models by construction and measures how much of the symmetry the others failed to absorb. The last column is training wall-clock time.}
 \label{tab:orientation}

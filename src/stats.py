@@ -35,7 +35,7 @@ from scipy import stats
 
 import config
 from src.common import ensure_dir, write_json
-from src.registry import REGISTRY, reference_runs
+from src.registry import REGISTRY, reference_runs, study_runs
 
 ALPHA = 0.05
 
@@ -369,7 +369,12 @@ def main() -> None:
     runs_path = config.RESULTS / "runs.csv"
     if not runs_path.exists():
         raise SystemExit(f"missing {runs_path}; run src.analysis first")
-    runs = pd.read_csv(runs_path)
+    # PAIR_KEYS deliberately does not include the dataset, because within one study
+    # every run is on the same images. That stops being true the moment a second
+    # dataset shares runs.csv, and a garment run pairs against a galaxy run that
+    # happens to match on every other key, so the filter goes here rather than into
+    # each test.
+    runs = study_runs(pd.read_csv(runs_path))
     runs["orientation_pooled"] = runs["orientation_pooled"].fillna(False).astype(bool)
 
     if not args.skip_bootstrap:

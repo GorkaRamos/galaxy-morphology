@@ -281,6 +281,40 @@ def coverage_at_accuracy(coverage: np.ndarray, accuracy: np.ndarray, target: flo
     return float(coverage[ok[-1]])
 
 
+def agreement_index(agreement) -> np.ndarray:
+    """Which agreement bin each item falls in. One definition, used everywhere.
+
+    Four modules used to write this line for themselves, and they were not all being
+    handed the same numbers, which is worse than it sounds because the results were
+    then printed side by side.
+    """
+    import config
+
+    edges = np.asarray(config.AGREEMENT_BINS, dtype=np.float64)
+    values = np.asarray(agreement, dtype=np.float64)
+    return np.clip(np.digitize(values, edges[1:-1]), 0, len(edges) - 2)
+
+
+def exact_agreement(pred, table) -> np.ndarray:
+    """The agreement of each predicted item, read from the label table.
+
+    The prediction files carry their own `agreement` column, and it must not be used
+    for binning. A run writes it out of the tensor the Dataset handed to the network,
+    which is float32, and a vote fraction of exactly 0.9 survives that round trip as
+    0.79999995 rather than 0.8. The label table keeps the same quantity in float64.
+    Digitising the two therefore partitions the test set differently: on Galaxy Zoo 2
+    a hundred and eighty-four galaxies change bin at the 0.8 edge, and on
+    Fashion-MNIST-H nine of six hundred change at 0.2. Since the ceiling is computed
+    from the table and the accuracy from the predictions, and the paper prints them in
+    the same row, the two have to be cut on the same numbers.
+    """
+    lookup = table.drop_duplicates("row").set_index("row")["agreement"]
+    exact = pred["row"].map(lookup)
+    if exact.isna().any():
+        raise ValueError("predictions carry rows that are absent from the label table")
+    return exact.to_numpy(dtype=np.float64)
+
+
 def bootstrap_ci(values: np.ndarray, statistic=np.mean, n_boot: int = 2000,
                  alpha: float = 0.05, seed: int = 0):
     """Percentile bootstrap CI over the rows of `values`."""

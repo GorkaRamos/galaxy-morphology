@@ -29,7 +29,7 @@ import pandas as pd
 import config
 from src.common import dataset_meta, ensure_dir, read_json
 from src.registry import (ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY,
-                          family_of, reference_runs)
+                          family_of, reference_runs, study_runs)
 
 PRETTY_POLICY = {"none": "none", "flip": "flips", "d4": r"$D_4$", "d4_photo": r"$D_4$ + photometric"}
 PRETTY_LABEL = {"hard": "hard", "hard_conf": "hard, confident only",
@@ -72,7 +72,7 @@ def _wrap(body: str, caption: str, label: str, colspec: str,
     # rather than tuned by hand. The \ifdim keeps tables that already fit at their
     # natural size instead of stretching them up to the margin.
     return "\n".join([
-        r"\begin{table}[!htb]", r"\centering",
+        r"\begin{table}[!htbp]", r"\centering",
         f"\\caption{{{caption}}}",
         f"\\label{{{label}}}",
         small,
@@ -187,16 +187,26 @@ def table_labels(runs: pd.DataFrame, tracking: pd.DataFrame | None) -> str:
     return _wrap("\n".join(lines), caption, "tab:labels", "llccccc", header)
 
 
+def orientation_pool(runs: pd.DataFrame) -> pd.DataFrame:
+    """The reference protocol with the augmentation policy left free.
+
+    The pooled arm is the point of the orientation experiment, so reference_runs()
+    cannot be used: it pins the policy to $D_4$. The other conditions are spelled out
+    instead, and the input size matters as much here as anywhere. Without it the
+    resolution sweep lands in the $D_4$ row and drags it down by three thousandths,
+    which is enough to make the table say pooling wins while the macros say it loses.
+    The figure and the table share this function because they did not share it before
+    and they disagreed: the figure was missing the size and initialisation pins.
+    """
+    sub = study_runs(runs)
+    native = sub["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
+    return sub[(sub["label_mode"] == "soft") & (sub["finetune"] == "full")
+               & (sub["train_size"] == 0) & (sub["loss"] == "bce")
+               & (sub["pretrained"]) & (sub["size"] == native)]
+
+
 def table_orientation(runs: pd.DataFrame) -> str:
-    # the pooled arm is the point of this table, so reference_runs() cannot be used;
-    # its conditions are spelled out instead, and the input size matters as much here
-    # as anywhere. Without it the resolution sweep lands in the D4 row and drags it
-    # down by three thousandths, which is enough to make the table say pooling wins
-    # while the macros say it loses.
-    native = runs["arch"].map(lambda a: REGISTRY[a].input_size if a in REGISTRY else None)
-    sub = runs[(runs["label_mode"] == "soft") & (runs["finetune"] == "full")
-               & (runs["train_size"] == 0) & (runs["loss"] == "bce")
-               & (runs["pretrained"]) & (runs["size"] == native)]
+    sub = orientation_pool(runs)
     lines = []
     for arch in ("resnet50", "convnext_tiny", "vit_small"):
         first = True
@@ -820,8 +830,10 @@ def macros(runs: pd.DataFrame) -> str:
             cmd("cifarCeiling", f"{100 * control['bayes_accuracy']:.2f}")
             cmd("cifarContested", f"{100 * control['contested_share']:.1f}")
 
-    cmd("nRuns", str(int(summary.get("n_runs", len(runs)))))
-    cmd("nArchitectures", str(int(runs["arch"].nunique())))
+    # counted here rather than read from summary.json, so that a rebuild from a
+    # clone reports the grid it can actually see
+    cmd("nRuns", str(int(len(study_runs(runs)))))
+    cmd("nArchitectures", str(int(study_runs(runs)["arch"].nunique())))
     return "\n".join(out) + "\n"
 
 
@@ -869,7 +881,7 @@ MACRO_NAMES = (
 PLACEHOLDER = r"\textcolor{red}{??}"
 
 PLACEHOLDER_TABLE = "\n".join([
-    r"\begin{table}[!htb]", r"\centering",
+    r"\begin{table}[!htbp]", r"\centering",
     r"\caption{Placeholder. Regenerate with \texttt{python -m src.tables --out <paper>} "
     r"once the runs have finished.}",
     r"\label{tab:%s}", r"\footnotesize",

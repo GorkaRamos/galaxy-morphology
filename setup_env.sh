@@ -1,9 +1,12 @@
 #!/bin/bash
 # Creates the conda environment on the login node. Run once:
 #
-#   ssh atos
+#   ssh <user>@hpc-bisite.usal.es        # 212.128.132.30 since the 2026 rebuild
 #   cd ~/galaxy-morphology
 #   bash setup_env.sh
+#
+# Safe to rerun: it updates an existing environment rather than replacing it, which
+# is what you want after the machine has been reinstalled underneath it.
 #
 # The compute nodes have H100 cards (sm_90), so PyTorch comes from the cu121
 # wheel index. Everything else is in requirements.txt.

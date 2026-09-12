@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=gzm_smoke
-#SBATCH --partition=gpu-small
+#SBATCH --partition=short
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -9,6 +9,12 @@
 #SBATCH --time=01:30:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
+#
+# Queues after the September 2026 rebuild: short (4 h, the default), medium
+# (1 day) and long (7 days). They all reach the same node, cn001, with 224
+# cores and eight H100s, and differ only in wall clock; GPUs still come from
+# --gres. Override either without editing: sbatch -p <queue> -t <time> ...
+# short (4 h) is enough: this is one configuration for two epochs.
 
 # Short runs over every code path that can break, before committing days of queue
 # to the real sweep. Each one trains on 5,000 galaxies for one or two epochs, so

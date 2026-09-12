@@ -12,8 +12,8 @@ Two datasets are checked and they answer differently, which is the point.
 Fashion-MNIST-H carries about sixty-seven annotations for each test image and its
 confusable classes genuinely divide the panel, so it has a ceiling below 100% and a
 contested tail, like Galaxy Zoo 2. CIFAR-10H carries about fifty and almost never
-divides: its ten-class ceiling is 99.7%, and under one item in a hundred is
-contested. Reporting both is worth more than reporting either. The first says the
+divides: its ten-class ceiling is 99.7%, and six items in a hundred are contested
+against four in five of the pair used here. Reporting both is worth more than reporting either. The first says the
 argument travels; the second says the instrument is not vacuous, since on a dataset
 whose annotation is nearly unanimous it correctly reports that there is nothing to
 find.
@@ -29,7 +29,8 @@ import pandas as pd
 
 import config
 from src.analysis import vote_ceiling
-from src.common import bootstrap_ci, ensure_dir, read_json, write_json
+from src.common import (agreement_index, bootstrap_ci, ensure_dir, exact_agreement,
+                        read_json, write_json)
 
 CIFAR10H = ("https://raw.githubusercontent.com/jcpeterson/cifar-10h/master/"
             "data/cifar10h-counts.npy")
@@ -82,8 +83,7 @@ def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
     split alone. Where the panel is unanimous the two coincide. Where it is divided
     they need not, and a model can only be as right as the label it was given.
     """
-    gold = table.set_index("row")["gold"]
-    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
+    gold = table.drop_duplicates("row").set_index("row")["gold"]
     rows = []
     for run_id in runs["run_id"]:
         path = config.RUNS / run_id / "predictions_test.csv"
@@ -99,10 +99,9 @@ def profile(runs: pd.DataFrame, table: pd.DataFrame) -> pd.DataFrame:
         correct = call == pred["label"].to_numpy().astype(int)
         against_gold = call == pred["gold"].to_numpy().astype(int)
         errors = int((~correct).sum())
-        binned = np.clip(np.digitize(pred["agreement"].to_numpy(), edges[1:-1]),
-                         0, len(edges) - 2)
+        binned = agreement_index(exact_agreement(pred, table))
 
-        for b in range(len(edges) - 1):
+        for b in range(len(config.AGREEMENT_BINS) - 1):
             inside = binned == b
             if not inside.any():
                 continue
@@ -134,7 +133,7 @@ def item_scores(runs: pd.DataFrame, table: pd.DataFrame) -> dict:
     within each bin. The bin holding the near-unanimous images has two dozen members,
     so an interval on it is not optional.
     """
-    gold = table.set_index("row")["gold"]
+    gold = table.drop_duplicates("row").set_index("row")["gold"]
     panel, agreement, hits, hits_gold = None, None, [], []
     for run_id in runs["run_id"]:
         path = config.RUNS / run_id / "predictions_test.csv"
@@ -144,7 +143,7 @@ def item_scores(runs: pd.DataFrame, table: pd.DataFrame) -> dict:
         call = (pred["prob"].to_numpy() >= 0.5).astype(int)
         if panel is None:
             panel = pred["label"].to_numpy().astype(int)
-            agreement = pred["agreement"].to_numpy()
+            agreement = exact_agreement(pred, table)
             keys = pred["row"].to_numpy()
         elif not np.array_equal(pred["row"].to_numpy(), keys):
             raise SystemExit(f"{run_id}: scores a different set of items")
@@ -216,8 +215,7 @@ def main() -> None:
     }
     # intervals over the test items, which is the uncertainty that dominates here
     scores = item_scores(runs, table)
-    edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
-    idx = np.clip(np.digitize(scores["agreement"], edges[1:-1]), 0, len(edges) - 2)
+    idx = agreement_index(scores["agreement"])
     for b, entry in summary["by_bin"].items():
         inside = idx == int(b)
         for key in ("panel", "gold"):

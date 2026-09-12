@@ -30,7 +30,7 @@ import config
 from src.common import (ensure_dir, load_table, read_json,
                         risk_coverage_curve, train_split_size)
 from src.registry import ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY, family_of
-from src.tables import PRETTY_POLICY, reference
+from src.tables import PRETTY_POLICY, orientation_pool, reference
 
 # --------------------------------------------------------------------------- #
 # Palette
@@ -621,9 +621,10 @@ def fig_selective(out_dir: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 def fig_orientation(out_dir: Path) -> None:
-    runs = _runs()
-    sub = runs[(runs["label_mode"] == "soft") & (runs["finetune"] == "full")
-               & (runs["loss"] == "bce") & (runs["train_size"] == 0)]
+    # the same pool the table uses; when this figure kept its own predicate it was
+    # missing the native-size and pretrained pins, so its D4 bars averaged the
+    # resolution sweep and the randomly initialised runs along with the five seeds
+    sub = orientation_pool(_runs())
     archs = [a for a in ("resnet50", "convnext_tiny", "vit_small")
              if a in set(sub["arch"])]
     if not archs:

@@ -93,6 +93,14 @@ wants to be on scratch.
 Steps 1 and 2 are login-node work. Everything else goes through `sbatch` from the
 repository root, so that the logs land in `logs/`.
 
+The cluster was rebuilt in September 2026 and its queues are now `short` (4 h, the
+default), `medium` (1 day) and `long` (7 days). All three reach the same node, which
+carries 224 cores and eight H100s, so the queue says how long a job may run and
+nothing else; GPUs are still requested with `--gres=gpu:N`. Each script picks its own
+queue, and `sbatch -p <queue> -t <time>` overrides it without editing anything. A job
+that reaches its limit is killed rather than moved, so the requested time is always
+comfortably above the measured one.
+
 ```bash
 # 1. downloads (needs network; ~6 GB in total)
 conda activate galaxy
@@ -102,47 +110,57 @@ python -m src.download_data
 python -m src.build_jobs
 python -m src.build_jobs --list          # group sizes without writing anything
 
-# 3. decode the images and build the label table and splits  (cpu, ~1 h)
+# 3. decode the images and build the label table and splits  (medium, ~1 h)
 sbatch slurm/01_prepare.sh
 
-# 4. the training sweep  (gpu-small, one GPU per task)
-sbatch --array=0-280%2 slurm/02_train_array.sh
+# 4. the training sweep  (medium, one GPU per task)
+sbatch --array=0-280%4 slurm/02_train_array.sh
 #    or, to hold four GPUs and keep them all busy in one job:
 #    FIRST=0 LAST=280 sbatch slurm/02b_train_multi.sh
 
-# 5. cross-survey evaluation and the explanations  (gpu-small)
+# 5. cross-survey evaluation and the explanations  (medium)
 sbatch slurm/03_cross_survey.sh
 sbatch slurm/04_xai.sh
 #    --gallery-run <run_id> also keeps the cutouts and maps of one model as arrays,
 #    which is what the manuscript's attribution figure is drawn from
 
-# 6. the second dataset  (gpu-small, minutes)
+# 6. the second dataset  (short, minutes)
 python -m src.prepare_fmh --inspect       # which class pairs the panel divides on
 sbatch slurm/06_replication.sh
 #    Fashion-MNIST-H, about sixty-seven annotations per test image. Optional: step 7
 #    skips it cleanly when the working set is absent.
 
-# 7. analysis, statistics, figures and LaTeX tables  (cpu)
+# 7. analysis, statistics, figures and LaTeX tables  (medium, ~4 h)
 PAPER_DIR=$HOME/paper5 sbatch slurm/05_analysis.sh
 #    STAGES=assets skips the two expensive stages and only redoes the replication,
 #    the figures, the tables and the copy into results/, which takes minutes
 ```
 
 Steps 1 to 6 need the cluster; nothing after them does. Everything under `results/`
-is committed, and `python -m src.figures` and `python -m src.tables` rebuild all
-thirteen figures and all eight LaTeX tables from it on a laptop with pandas and
-matplotlib, with no GPU, no image arrays and no checkpoints. That is the intended way
-to check a number in the paper.
+is committed, and from a bare clone it rebuilds all thirteen figures and all eight
+LaTeX tables with nothing but pandas, scipy and matplotlib: no GPU, no image arrays,
+no checkpoints, no downloads.
+
+```bash
+GZM_WORK=$PWD python -m src.figures --out /tmp/assets
+GZM_WORK=$PWD python -m src.tables  --out /tmp/assets
+```
+
+`GZM_WORK` is what points the code at a results directory, and pointing it at the
+repository root is what makes it read the committed `results/` rather than a scratch
+one that does not exist. The tables come out byte for byte identical to the ones the
+cluster produced, which is the check worth running first.
 
 Two repair paths worth knowing about, because both cost seconds and the alternative
 is hours. `python -m src.xai --rebuild-summary` reassembles `xai_summary.csv` from the
-per-run json files, and `python -m src.analysis --dataset-sample-only` writes the
+per-galaxy tables, and `python -m src.analysis --dataset-sample-only` writes the
 sample the dataset figure needs without redoing the analysis.
 
-Replace `280` with whatever `build_jobs` reports. The `%2` is the two-GPU-per-user
-limit on `gpu-small`; raise it if the limit changes. Every training run checks for
-its own `metrics.json` first and exits immediately if it is there, so a job that
-hits the wall clock can be resubmitted over the same range without redoing work.
+Replace `280` with whatever `build_jobs` reports. The number after the `%` is how
+many array tasks run at once; check `squeue` and lower it when the machine is busy.
+Every training run checks for its own `metrics.json` first and exits immediately if
+it is there, so a job that hits the wall clock can be resubmitted over the same range
+without redoing work.
 
 A single configuration, for a quick check that the environment is sound:
 
@@ -164,11 +182,10 @@ epochs:
 | scratch CNNs at 128 px | ~10 min | | |
 | orientation-pooled (eight passes per step) | ~5.3 h | 9 | 48 |
 
-The design as shipped is 281 runs and about 200 GPU-hours: four days of wall clock
-on the two GPUs `gpu-small` allows, or two days on four GPUs through
-`02b_train_multi.sh`. The second is the better use of the machine here, and it is a
-coherent request for `gpu-large` because all four cards stay busy for the whole
-allocation.
+The design as shipped is 281 runs and about 200 GPU-hours: a little over two days of
+wall clock on four cards, either as an array throttled to four tasks or as one job
+through `02b_train_multi.sh`. The second keeps every card busy for the whole
+allocation, which is the coherent way to ask for four of them.
 
 `--groups` lets you run it in pieces. `main` (102 runs, 67 GPU-h) alone is enough
 for the headline table, the agreement-resolved figure and the Friedman test; the

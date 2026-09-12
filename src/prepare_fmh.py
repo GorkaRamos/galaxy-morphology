@@ -13,8 +13,8 @@ Why this dataset. The argument is about labels that are panel verdicts, and it i
 made on Galaxy Zoo 2. Fashion-MNIST-H (Ishida et al., ICLR 2023) collects around
 sixty-seven annotations for each of the ten thousand Fashion-MNIST test images, which
 is the closest thing outside astronomy to the vote record we rely on. Its confusable
-classes disagree far more than CIFAR-10H does: over the ten classes the panel ceiling
-is about 96%, against 99.7% for CIFAR-10H, and for pullover against coat it falls to
+classes disagree far more than CIFAR-10H does, whose ten-class ceiling is 99.7%: run
+--inspect to see the ordering, and for pullover against coat the ceiling falls to
 about 92%.
 
 The votes cover the test split only, so training uses the ordinary Fashion-MNIST

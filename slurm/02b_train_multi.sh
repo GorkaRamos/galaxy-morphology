@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=gzm_train_multi
-#SBATCH --partition=gpu-large
+#SBATCH --partition=long
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -9,12 +9,19 @@
 #SBATCH --time=3-00:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
+#
+# Queues after the September 2026 rebuild: short (4 h, the default), medium
+# (1 day) and long (7 days). They all reach the same node, cn001, with 224
+# cores and eight H100s, and differ only in wall clock; GPUs still come from
+# --gres. Override either without editing: sbatch -p <queue> -t <time> ...
+# long (7 days). This holds four cards and works through a slice of the
+# grid in one job, so it is the only script that needs the long queue.
 
 # Same work as 02_train_array.sh, packed differently: one job holding four GPUs and
 # running four training processes side by side, each pinned to its own card. This
-# is the honest way to ask gpu-large for four GPUs — every card is busy for the
-# whole allocation — and it clears a long sweep in one go instead of queueing
-# hundreds of single-GPU tasks.
+# is the honest way to ask for four GPUs, since every card is busy for the whole
+# allocation, and it clears a long sweep in one go instead of queueing hundreds of
+# single-GPU tasks.
 #
 #   FIRST=0 LAST=199 sbatch slurm/02b_train_multi.sh
 #

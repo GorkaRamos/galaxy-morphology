@@ -17,12 +17,18 @@ files — stay in `$GZM_WORK` and are not committed.
 | `calibration.csv` | reliability curves for the reference runs |
 | `vote_tracking.csv` | correlation between the predicted probability and the volunteer vote fraction |
 | `cross_survey.csv` | zero-shot transfer from Galaxy Zoo 2 to Galaxy10 DECaLS |
+| `replication.json` | the second dataset: its ceiling, the agreement profile, the error budget, and the CIFAR-10H control |
+| `replication.csv` | the same profile per run and per agreement bin, both against the panel's verdict and against the label Fashion-MNIST ships |
+| `fmh_meta.json` | the Fashion-MNIST-H working set: class pair, splits, panel sizes, and how often the two labels agree |
 | `bootstrap.csv` | percentile bootstrap confidence intervals over the test set |
 | `mcnemar.csv` | paired exact McNemar tests for the comparisons the paper claims |
 | `architecture_pairwise.csv` | Holm-corrected pairwise McNemar between architectures, on seed-averaged predictions |
 | `friedman.json` | Friedman test across architectures with seeds as blocks, plus Nemenyi ranks |
 | `wilcoxon.csv` | paired signed-rank tests for each ablation knob |
 | `xai_summary.csv` | faithfulness and background-excess scores per explained run |
+| `risk_coverage.csv` | the risk--coverage curve of each reference run, so the selective-prediction figure needs no prediction files |
+| `xai_gallery.npz` | the cutouts and attribution maps behind the Grad-CAM figure |
+| `dataset_sample.npz` | the galaxies behind the dataset figure, one row per agreement bin |
 
 ## Per-run and per-galaxy
 

@@ -63,6 +63,21 @@ PRETTY_FAMILY = {"custom": "Scratch CNN", "cnn": "Pretrained CNN",
                  "transformer": "Transformer"}
 
 
+def study_runs(runs):
+    """Every run of the Galaxy Zoo 2 study, whatever protocol it used.
+
+    `reference_runs` below is the narrow pool behind the headline table. This is the
+    wide one: the whole grid, ablations included, and it is what a count of runs
+    means. The replication sweep on a second dataset shares runs.csv with it, so
+    without this the abstract reports the size of the galaxy grid as a number that
+    includes nine runs on photographs of clothing, and every paired test can match a
+    galaxy run against a garment run that happens to share the other settings.
+    """
+    if "dataset" not in runs:
+        return runs
+    return runs[runs["dataset"].fillna("gz2") == "gz2"]
+
+
 def reference_runs(runs, label_mode: str | None = None):
     """The one protocol every headline number comes from.
 

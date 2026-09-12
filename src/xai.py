@@ -48,7 +48,8 @@ import torch.nn.functional as F
 
 import config
 from src import models
-from src.common import ensure_dir, get_device, read_json, set_seed, write_json
+from src.common import (agreement_index, ensure_dir, exact_agreement, get_device,
+                        read_json, set_seed, write_json)
 from src.datasets import GalaxyDataset, load_gz2_table
 
 
@@ -476,14 +477,39 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
         explainer.close()
 
     per_galaxy = pd.DataFrame(rows)
+    per_galaxy["agreement"] = exact_agreement(per_galaxy, load_gz2_table())
     out_dir = ensure_dir(config.RESULTS / "xai")
     per_galaxy.to_csv(out_dir / f"{run_id}__{used}.csv", index=False)
 
+    summary = _summarise(run_id, cfg["arch"], cfg["label_mode"], used, per_galaxy)
+    write_json(out_dir / f"{run_id}__{used}.json", summary)
+
+    if make_panel:
+        _panel(run_id, cams, per_galaxy)
+    if gallery:
+        _save_gallery(run_id, cams, per_galaxy)
+    print(f"  deletion {summary['deletion_auc']:.3f}  insertion {summary['insertion_auc']:.3f}  "
+          f"background {summary['background_reliance']:.3f} "
+          f"(excess {summary['background_excess']:+.3f}, "
+          f"footprint {summary['footprint_fraction']:.3f})")
+    return summary
+
+
+def _summarise(run_id: str, arch: str, label_mode: str, used: str,
+               per_galaxy: pd.DataFrame) -> dict:
+    """One run's explanation scores, from its per-galaxy table.
+
+    Separate from the code that computes the maps so that the summary can be rebuilt
+    later without a GPU. The agreement column must be the one in the label table: a
+    run writes it out of the tensor the Dataset handed to the network, which is
+    float32, and fifty-two of the five thousand explained galaxies sit close enough
+    to a bin edge that the round trip moves them across it.
+    """
     high = per_galaxy["agreement"] >= 0.6
-    summary = {
+    return {
         "run_id": run_id,
-        "arch": cfg["arch"],
-        "label_mode": cfg["label_mode"],
+        "arch": arch,
+        "label_mode": label_mode,
         "method": used,
         "n": int(len(per_galaxy)),
         "deletion_auc": float(per_galaxy["deletion_auc"].mean()),
@@ -511,17 +537,6 @@ def explain_run(run_id: str, n: int = 24, method: str = "auto", steps: int = 20,
             float(per_galaxy.loc[~high, "footprint_fraction"].mean()),
         "accuracy_on_sample": float(per_galaxy["correct"].mean()),
     }
-    write_json(out_dir / f"{run_id}__{used}.json", summary)
-
-    if make_panel:
-        _panel(run_id, cams, per_galaxy)
-    if gallery:
-        _save_gallery(run_id, cams, per_galaxy)
-    print(f"  deletion {summary['deletion_auc']:.3f}  insertion {summary['insertion_auc']:.3f}  "
-          f"background {summary['background_reliance']:.3f} "
-          f"(excess {summary['background_excess']:+.3f}, "
-          f"footprint {summary['footprint_fraction']:.3f})")
-    return summary
 
 
 def _save_gallery(run_id: str, cams, per_galaxy: pd.DataFrame,
@@ -535,8 +550,7 @@ def _save_gallery(run_id: str, cams, per_galaxy: pd.DataFrame,
     thing from the published results alone.
     """
     edges = np.asarray(config.AGREEMENT_BINS, dtype=float)
-    agreement = per_galaxy["agreement"].to_numpy()
-    idx = np.clip(np.digitize(agreement, edges[1:-1]), 0, len(edges) - 2)
+    idx = agreement_index(per_galaxy["agreement"])
 
     keep = []
     for b in range(len(edges) - 1):
@@ -611,18 +625,45 @@ def _merge_summary(fresh: pd.DataFrame) -> pd.DataFrame:
 
 
 def rebuild_summary() -> pd.DataFrame:
-    """Reassemble xai_summary.csv from the per-run json files.
+    """Reassemble xai_summary.csv from the per-galaxy tables.
 
-    Every run that was ever explained left one behind, so the table can be rebuilt
-    without a GPU and without recomputing a single map.
+    Every run that was ever explained left one behind, so the whole table rebuilds
+    without a GPU and without recomputing a single map. It is recomputed from the
+    per-galaxy csv rather than copied from the per-run json, because the json was
+    written with whatever binning was in force at the time and the csv carries the
+    row index, which lets the agreement be read back from the label table.
     """
-    rows = [read_json(q) for q in sorted((config.RESULTS / "xai").glob("*.json"))]
-    if not rows:
-        raise SystemExit(f"no per-run json under {config.RESULTS / 'xai'}")
+    out_dir = config.RESULTS / "xai"
+    tables = sorted(out_dir.glob("*__*.csv"))
+    if not tables:
+        raise SystemExit(f"no per-galaxy csv under {out_dir}")
+
+    runs_path = config.RESULTS / "runs.csv"
+    meta = pd.read_csv(runs_path).set_index("run_id") if runs_path.exists() else None
+    table = load_gz2_table()
+
+    rows, repaired = [], 0
+    for path in tables:
+        run_id, _, used = path.stem.rpartition("__")
+        per_galaxy = pd.read_csv(path)
+        exact = exact_agreement(per_galaxy, table)
+        repaired += int((per_galaxy["agreement"].to_numpy() != exact).sum())
+        per_galaxy["agreement"] = exact
+        per_galaxy.to_csv(path, index=False)
+
+        arch = label_mode = ""
+        if meta is not None and run_id in meta.index:
+            arch = str(meta.loc[run_id, "arch"])
+            label_mode = str(meta.loc[run_id, "label_mode"])
+        summary = _summarise(run_id, arch, label_mode, used, per_galaxy)
+        write_json(out_dir / f"{run_id}__{used}.json", summary)
+        rows.append(summary)
+
     sort_on = [c for c in ("arch", "label_mode", "method") if c in rows[0]]
     out = pd.DataFrame(rows).sort_values(sort_on).reset_index(drop=True)
     out.to_csv(_summary_path(), index=False)
-    print(f"rebuilt {_summary_path()} from {len(rows)} per-run files")
+    print(f"rebuilt {_summary_path()} from {len(rows)} per-galaxy tables"
+          f"{f'; {repaired} agreement values corrected' if repaired else ''}")
     return out
 
 

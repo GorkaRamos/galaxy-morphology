@@ -1,14 +1,20 @@
 #!/bin/bash
 #SBATCH --job-name=gzm_replication
-#SBATCH --partition=gpu-small
+#SBATCH --partition=short
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
-#SBATCH --time=04:00:00
+#SBATCH --time=02:00:00
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
+#
+# Queues after the September 2026 rebuild: short (4 h, the default), medium
+# (1 day) and long (7 days). They all reach the same node, cn001, with 224
+# cores and eight H100s, and differ only in wall clock; GPUs still come from
+# --gres. Override either without editing: sbatch -p <queue> -t <time> ...
+# short (4 h). Nine runs over twelve thousand 28-pixel images, minutes each.
 
 # The same pipeline on a second, non-astronomical dataset: Fashion-MNIST-H, which
 # carries about sixty-seven annotations per test image. The point is to show that
