@@ -642,7 +642,7 @@ def rebuild_summary() -> pd.DataFrame:
     meta = pd.read_csv(runs_path).set_index("run_id") if runs_path.exists() else None
     table = load_gz2_table()
 
-    rows, repaired = [], 0
+    rows, moved = [], 0
     for path in tables:
         # Two generations of filename live here. The older runs wrote one file per
         # run, `<run_id>.csv`; once a run could be explained by more than one method
@@ -658,7 +658,12 @@ def rebuild_summary() -> pd.DataFrame:
 
         per_galaxy = pd.read_csv(path)
         exact = exact_agreement(per_galaxy, table)
-        repaired += int((per_galaxy["agreement"].to_numpy() != exact).sum())
+        # Count the galaxies that change bin, not the ones whose last bits move.
+        # Almost every float32 differs from its float64 original somewhere, so a
+        # count of changed values is close to the sample size and says nothing; what
+        # matters is how many cross an edge, because only those change a result.
+        moved += int((agreement_index(per_galaxy["agreement"])
+                      != agreement_index(exact)).sum())
         per_galaxy["agreement"] = exact
         per_galaxy.to_csv(path, index=False)
 
@@ -675,7 +680,7 @@ def rebuild_summary() -> pd.DataFrame:
     out = pd.DataFrame(rows).sort_values(sort_on).reset_index(drop=True)
     out.to_csv(_summary_path(), index=False)
     print(f"rebuilt {_summary_path()} from {len(rows)} per-galaxy tables"
-          f"{f'; {repaired} agreement values corrected' if repaired else ''}")
+          f"{f'; {moved} galaxies moved to another agreement bin' if moved else ''}")
     return out
 
 
