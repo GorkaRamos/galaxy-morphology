@@ -112,15 +112,6 @@ effnetv2_s_soft_d4_s224_full_bce_nfull_seed1,0.921984571313152,0.053815686051083
 effnetv2_s_soft_d4_s224_full_bce_nfull_seed2,0.9226182576748899,0.05575402295081861,0.9702741603666827,effnetv2_s,gz2,soft,d4,224,full,bce,0,2,False,True
 effnetv2_s_soft_d4_s224_full_bce_nfull_seed3,0.9226258200551022,0.05344539653720733,0.9708522561736929,effnetv2_s,gz2,soft,d4,224,full,bce,0,3,False,True
 effnetv2_s_soft_d4_s224_full_bce_nfull_seed4,0.9220517376522923,0.05454955411841156,0.9701322093594531,effnetv2_s,gz2,soft,d4,224,full,bce,0,4,False,True
-fmh_convnext_tiny_hard_none_s224_full_bce_nfull_seed0,0.6589844828772808,0.38901229065980686,0.6827658963370277,convnext_tiny,fmh,hard,none,224,full,bce,0,0,False,True
-fmh_convnext_tiny_hard_none_s224_full_bce_nfull_seed1,0.6936330456910712,0.39032106465613847,0.6876494672850745,convnext_tiny,fmh,hard,none,224,full,bce,0,1,False,True
-fmh_convnext_tiny_hard_none_s224_full_bce_nfull_seed2,0.6745120241583147,0.38823153636782554,0.6930547269031568,convnext_tiny,fmh,hard,none,224,full,bce,0,2,False,True
-fmh_resnet50_hard_none_s224_full_bce_nfull_seed0,0.7327860405033588,0.3826117495678422,0.6848863905053979,resnet50,fmh,hard,none,224,full,bce,0,0,False,True
-fmh_resnet50_hard_none_s224_full_bce_nfull_seed1,0.7081335751335412,0.3815192896026712,0.6815015200057811,resnet50,fmh,hard,none,224,full,bce,0,1,False,True
-fmh_resnet50_hard_none_s224_full_bce_nfull_seed2,0.7323012606367356,0.3680613478824331,0.6991322198457277,resnet50,fmh,hard,none,224,full,bce,0,2,False,True
-fmh_vit_small_hard_none_s224_full_bce_nfull_seed0,0.7214191510240472,0.376016383126882,0.6991630202112666,vit_small,fmh,hard,none,224,full,bce,0,0,False,True
-fmh_vit_small_hard_none_s224_full_bce_nfull_seed1,0.7179354561106142,0.3764826082014091,0.701637844567751,vit_small,fmh,hard,none,224,full,bce,0,1,False,True
-fmh_vit_small_hard_none_s224_full_bce_nfull_seed2,0.6889619173358075,0.38620283086303586,0.6858798558249767,vit_small,fmh,hard,none,224,full,bce,0,2,False,True
 mobilenetv3_hard_d4_s224_full_bce_nfull_seed0,0.8931244738058064,0.15727617981862682,0.9110664652328352,mobilenetv3,gz2,hard,d4,224,full,bce,0,0,False,True
 mobilenetv3_hard_d4_s224_full_bce_nfull_seed1,0.8802759914345438,0.1565091298000637,0.9113415685810559,mobilenetv3,gz2,hard,d4,224,full,bce,0,1,False,True
 mobilenetv3_hard_d4_s224_full_bce_nfull_seed2,0.8912002580315928,0.15886003970019533,0.9096819170885602,mobilenetv3,gz2,hard,d4,224,full,bce,0,2,False,True

@@ -10,7 +10,7 @@
   "deletion_auc": 0.6646854969114065,
   "faithfulness": 0.2183987010270357,
   "footprint_fraction": 0.3399497767857143,
-  "footprint_high_agreement": 0.3584442761479592,
+  "footprint_high_agreement": 0.35844427614795915,
   "footprint_low_agreement": 0.3276201105442177,
   "insertion_auc": 0.8830841979384423,
   "label_mode": "hard",
