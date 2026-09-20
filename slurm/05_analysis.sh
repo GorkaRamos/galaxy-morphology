@@ -58,7 +58,7 @@ fi
 # recomputed from the maps: no GPU, a few seconds, and it is what repairs the
 # agreement column, which a run writes out of a float32 tensor.
 WORK=${GZM_WORK:-$HOME/galaxy-morphology/work}
-if compgen -G "$WORK/results/xai/*__*.csv" > /dev/null; then
+if compgen -G "$WORK/results/xai/*.csv" > /dev/null; then
     step python -m src.xai --rebuild-summary
 else
     echo "no per-galaxy explanation tables, skipping the summary rebuild"

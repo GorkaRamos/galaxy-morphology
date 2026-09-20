@@ -634,7 +634,7 @@ def rebuild_summary() -> pd.DataFrame:
     row index, which lets the agreement be read back from the label table.
     """
     out_dir = config.RESULTS / "xai"
-    tables = sorted(out_dir.glob("*__*.csv"))
+    tables = sorted(out_dir.glob("*.csv"))
     if not tables:
         raise SystemExit(f"no per-galaxy csv under {out_dir}")
 
@@ -644,19 +644,31 @@ def rebuild_summary() -> pd.DataFrame:
 
     rows, repaired = [], 0
     for path in tables:
-        run_id, _, used = path.stem.rpartition("__")
+        # Two generations of filename live here. The older runs wrote one file per
+        # run, `<run_id>.csv`; once a run could be explained by more than one method
+        # the name gained the method, `<run_id>__<method>.csv`. Both are read, and
+        # each is written back under the name it already had, so a rebuild never
+        # leaves two records of the same run behind.
+        sibling = path.with_suffix(".json")
+        known = read_json(sibling) if sibling.exists() else {}
+        if "__" in path.stem:
+            run_id, _, used = path.stem.rpartition("__")
+        else:
+            run_id, used = path.stem, str(known.get("method", "gradcam"))
+
         per_galaxy = pd.read_csv(path)
         exact = exact_agreement(per_galaxy, table)
         repaired += int((per_galaxy["agreement"].to_numpy() != exact).sum())
         per_galaxy["agreement"] = exact
         per_galaxy.to_csv(path, index=False)
 
-        arch = label_mode = ""
-        if meta is not None and run_id in meta.index:
+        arch = str(known.get("arch", ""))
+        label_mode = str(known.get("label_mode", ""))
+        if not arch and meta is not None and run_id in meta.index:
             arch = str(meta.loc[run_id, "arch"])
             label_mode = str(meta.loc[run_id, "label_mode"])
         summary = _summarise(run_id, arch, label_mode, used, per_galaxy)
-        write_json(out_dir / f"{run_id}__{used}.json", summary)
+        write_json(sibling, summary)
         rows.append(summary)
 
     sort_on = [c for c in ("arch", "label_mode", "method") if c in rows[0]]
