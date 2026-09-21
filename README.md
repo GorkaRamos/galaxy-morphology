@@ -71,7 +71,7 @@ comparable across seeds.
 ## Setup
 
 ```bash
-git clone https://github.com/ralorin/galaxy-morphology.git
+git clone https://github.com/GorkaRamos/galaxy-morphology.git
 cd galaxy-morphology
 bash setup_env.sh          # conda env `galaxy`, PyTorch cu121, then warms the weight cache
 ```

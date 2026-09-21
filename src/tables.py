@@ -39,7 +39,12 @@ PRETTY_LABEL = {"hard": "hard", "hard_conf": "hard, confident only",
 
 
 def _load():
-    runs = pd.read_csv(config.RESULTS / "runs.csv")
+    # Filtered to the study here rather than in each caller. Three figures and two
+    # tables currently exclude the second dataset only as a side effect of pinning
+    # the policy or the label mode, which holds for the replication as it stands and
+    # would stop holding the moment it is rerun with different settings. Anything
+    # that needs those runs reads results/replication.{json,csv} instead.
+    runs = study_runs(pd.read_csv(config.RESULTS / "runs.csv"))
     runs["orientation_pooled"] = runs["orientation_pooled"].fillna(False).astype(bool)
     runs["train_size"] = runs["train_size"].fillna(0).astype(int)
     if "pretrained" not in runs:

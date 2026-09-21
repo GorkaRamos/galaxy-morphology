@@ -29,7 +29,8 @@ import pandas as pd
 import config
 from src.common import (ensure_dir, load_table, read_json,
                         risk_coverage_curve, train_split_size)
-from src.registry import ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY, family_of
+from src.registry import (ARCHITECTURES, PRETTY_ARCH, PRETTY_FAMILY, REGISTRY,
+                          family_of, study_runs)
 from src.tables import PRETTY_POLICY, orientation_pool, reference
 
 # --------------------------------------------------------------------------- #
@@ -195,7 +196,12 @@ def _save(fig, out_dir: Path, name: str) -> None:
 
 
 def _runs() -> pd.DataFrame:
-    runs = pd.read_csv(config.RESULTS / "runs.csv")
+    # Filtered to the study here rather than in each caller. Three figures and two
+    # tables currently exclude the second dataset only as a side effect of pinning
+    # the policy or the label mode, which holds for the replication as it stands and
+    # would stop holding the moment it is rerun with different settings. Anything
+    # that needs those runs reads results/replication.{json,csv} instead.
+    runs = study_runs(pd.read_csv(config.RESULTS / "runs.csv"))
     runs["orientation_pooled"] = runs["orientation_pooled"].fillna(False).astype(bool)
     runs["train_size"] = runs["train_size"].fillna(0).astype(int)
     if "pretrained" not in runs:
