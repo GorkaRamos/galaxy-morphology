@@ -22,6 +22,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
@@ -1173,8 +1174,11 @@ def fig_replication(out_dir: Path) -> None:
     x = _bin_centres(pd.Index(bins))
     row = [rep["by_bin"][str(b)] for b in bins]
 
-    fig, axes = plt.subplots(2, 1, figsize=(3.6, 4.6), sharex=True,
-                             gridspec_kw={"height_ratios": [1.0, 0.55], "hspace": 0.14})
+    # Drawn at the width of the text measure rather than at two thirds of it, so the
+    # panel is set at its own scale and the labels keep the size they were authored at
+    # instead of being shrunk to fit.
+    fig, axes = plt.subplots(2, 1, figsize=(5.8, 6.0), sharex=True,
+                             gridspec_kw={"height_ratios": [1.0, 0.55], "hspace": 0.12})
     ax = axes[0]
 
     top = [r["ceiling"] for r in row]
@@ -1219,6 +1223,166 @@ def fig_replication(out_dir: Path) -> None:
 
 
 
+# --------------------------------------------------------------------------- #
+# 14. What the model says against what the panel said
+# --------------------------------------------------------------------------- #
+
+def fig_verdicts(out_dir: Path) -> None:
+    """The same galaxies, with the panel's split and the model's probability.
+
+    Everything else in the paper argues this from aggregates. Here it is on objects a
+    reader can look at: the vote fraction is drawn under each cutout as a filled bar
+    and the model's probability as an open one, and the two are close on every galaxy
+    whether or not the galaxy was contested. On the left the panel was split, both
+    bars sit near the middle, and the one mistake in the panel lives there; on the
+    right both bars are pinned to an end.
+    """
+    path = config.RESULTS / "xai_gallery.npz"
+    if not path.exists():
+        print("skipping fig_verdicts: xai_gallery.npz missing")
+        return
+    with np.load(path, allow_pickle=False) as g:
+        images, bins = g["images"], g["bin"]
+        panel, model = g["p_featured"], g["prob"]
+        correct = g["correct"].astype(bool)
+        run_id = str(g["run_id"])
+
+    per_bin = 2
+    columns = sorted(set(bins.tolist()))
+    picked = [[i for i in range(len(bins)) if bins[i] == b][:per_bin]
+              for b in columns]
+    if not any(picked):
+        print("skipping fig_verdicts: nothing to draw")
+        return
+
+    edges = config.AGREEMENT_BINS
+    fig = plt.figure(figsize=(5.8, 3.9))
+    # one outer row per example, and inside each the cutouts with their own bars, so
+    # the gap between a picture and its numbers stays smaller than the gap between rows
+    outer = fig.add_gridspec(per_bin, 1, hspace=0.22, top=0.90, bottom=0.12)
+
+    for r in range(per_bin):
+        inner = outer[r].subgridspec(2, len(columns), height_ratios=[1.0, 0.30],
+                                     hspace=0.04, wspace=0.06)
+        for c, column in enumerate(picked):
+            if r >= len(column):
+                continue
+            i = column[r]
+
+            ax = fig.add_subplot(inner[0, c])
+            ax.imshow(images[i])
+            ax.set_xticks([]); ax.set_yticks([])
+            for side in ax.spines.values():
+                side.set_visible(False)
+            if r == 0:
+                b = int(bins[i])
+                ax.set_title(f"{edges[b]:.1f}–{edges[b + 1]:.1f}", fontsize=7,
+                             color=INK_SECOND, pad=2)
+
+            bar = fig.add_subplot(inner[1, c])
+            bar.set_xlim(0, 1); bar.set_ylim(-0.15, 2.15)
+            bar.axvline(0.5, color=AXIS, lw=0.6, zorder=0)
+            bar.barh(1.35, panel[i], height=0.66, color=SLOT[0], zorder=2)
+            bar.barh(0.45, model[i], height=0.66, facecolor="none",
+                     edgecolor=SLOT[1], lw=1.1, zorder=2)
+            bar.set_xticks([]); bar.set_yticks([])
+            bar.grid(False)
+            for side in bar.spines.values():
+                side.set_visible(False)
+            note = f"{panel[i]:.2f} / {model[i]:.2f}"
+            if not correct[i]:
+                note += "  miss"
+            bar.annotate(note, (0.5, -0.12), xycoords="axes fraction",
+                         ha="center", va="top", fontsize=6.5,
+                         color=INK if correct[i] else SLOT[1])
+
+    handles = [Patch(facecolor=SLOT[0], label="volunteers"),
+               Patch(facecolor="none", edgecolor=SLOT[1], lw=1.1, label="model")]
+    fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=7,
+               frameon=False, handlelength=1.5, bbox_to_anchor=(0.5, 0.0))
+    fig.suptitle("volunteer agreement, rising left to right", fontsize=7.5,
+                 color=INK_SECOND, y=0.98)
+    _save(fig, out_dir, "fig_verdicts")
+    print(f"  drawn from {run_id}")
+
+
+
+# --------------------------------------------------------------------------- #
+# 15. The vote model, on five galaxies
+# --------------------------------------------------------------------------- #
+
+def fig_panel(out_dir: Path) -> None:
+    """Equation~(2) drawn on objects rather than stated.
+
+    For each galaxy the lower panel is the distribution of how many of its own
+    volunteers would have said "featured" had the same number been asked again, under
+    the binomial the paper assumes. The shaded part is the mass that lands on the
+    recorded side of the halfway line, which is $\pi$. On the left the two sides are
+    nearly equal and the recorded label is close to a coin flip; by the second column
+    the split is already decisive, which is worth seeing, because it shows that only
+    the genuinely close panels are uncertain.
+    """
+    path = config.RESULTS / "dataset_sample.npz"
+    if not path.exists():
+        print("skipping fig_panel: dataset_sample.npz missing")
+        return
+    from scipy.stats import binom
+
+    with np.load(path, allow_pickle=False) as d:
+        bins, p_vals = d["sample_bin"], d["sample_p"].astype(np.float64)
+        votes, images = d["sample_votes"].astype(int), d["sample_images"]
+
+    columns = []
+    for b in sorted(set(bins.tolist())):
+        where = [i for i in range(len(bins)) if bins[i] == b]
+        if where:
+            columns.append(where[0])
+    if not columns:
+        print("skipping fig_panel: nothing to draw")
+        return
+
+    fig = plt.figure(figsize=(5.8, 3.0))
+    gs = fig.add_gridspec(2, len(columns), height_ratios=[1.0, 0.72],
+                          hspace=0.08, wspace=0.10, top=0.87, bottom=0.20)
+    edges = config.AGREEMENT_BINS
+
+    for c, i in enumerate(columns):
+        ax = fig.add_subplot(gs[0, c])
+        ax.imshow(images[i])
+        ax.set_xticks([]); ax.set_yticks([])
+        for side in ax.spines.values():
+            side.set_visible(False)
+        b = int(bins[i])
+        ax.set_title(f"{edges[b]:.1f}–{edges[b + 1]:.1f}", fontsize=7,
+                     color=INK_SECOND, pad=2)
+
+        n, pr = int(votes[i]), float(p_vals[i])
+        k = np.arange(n + 1)
+        pmf = binom.pmf(k, n, pr)
+        keep = k > n / 2 if pr > 0.5 else k < n / 2
+        pi = float(pmf[keep].sum() + 0.5 * pmf[k == n / 2].sum())
+
+        ax = fig.add_subplot(gs[1, c])
+        ax.bar(k, pmf, width=1.0, color=GRID, lw=0)
+        ax.bar(k[keep], pmf[keep], width=1.0, color=SLOT[0], lw=0)
+        ax.axvline(n / 2, color=INK_SECOND, lw=0.8)
+        ax.set_xlim(-0.5, n + 0.5)
+        # the panel size goes in the label below rather than on an axis, because five
+        # pairs of tick labels at this width collide with their neighbours
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.grid(False)
+        for side in ax.spines.values():
+            side.set_visible(False)
+        ax.annotate(f"$N$ = {n},  $p$ = {pr:.2f}\n$\\pi$ = {pi:.2f}",
+                    (0.5, -0.06), xycoords="axes fraction", ha="center", va="top",
+                    fontsize=6.5, color=INK)
+
+    fig.text(0.5, 0.955, "volunteer agreement, rising left to right",
+             ha="center", fontsize=7.5, color=INK_SECOND)
+    _save(fig, out_dir, "fig_panel")
+
+
+
 FIGURES = {
     "dataset": fig_dataset,
     "agreement": fig_agreement,
@@ -1230,6 +1394,8 @@ FIGURES = {
     "pareto": fig_pareto,
     "cross_survey": fig_cross_survey,
     "replication": fig_replication,
+    "verdicts": fig_verdicts,
+    "panel": fig_panel,
     "faithfulness": fig_faithfulness,
     "critical_difference": fig_critical_difference,
     "pipeline": fig_pipeline,
